@@ -1,1 +1,77 @@
-Мой сайт!
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ретро игры</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #e94560;
+            font-size: 3rem;
+            margin-bottom: 40px;
+            text-shadow: 0 0 20px #e94560;
+        }
+        .games {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .game-card {
+            width: 200px;
+            height: 200px;
+            background: #0f3460;
+            border: 3px solid #e94560;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .game-card:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px #e94560;
+        }
+        .game-card img {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 15px;
+        }
+        .game-card span {
+            color: #fff;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ретро игры</h1>
+    <div class="games">
+        <a href="tetris/" class="game-card">
+            <span>Тетрис</span>
+        </a>
+        <a href="snake/" class="game-card">
+            <span>Змейка</span>
+        </a>
+        <a href="arkanoid/" class="game-card">
+            <span>Арканоид</span>
+        </a>
+    </div>
+</body>
+</html>

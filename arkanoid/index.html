@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Арканоид</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        h1 { color: #60a5fa; margin-bottom: 20px; }
+        canvas {
+            border: 3px solid #60a5fa;
+            background: #0f0f23;
+        }
+        .score { color: #fff; font-size: 1.5rem; margin: 10px 0; }
+        .back { color: #60a5fa; text-decoration: none; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Арканоид</h1>
+    <div class="score">Счёт: <span id="score">0</span></div>
+    <canvas id="game" width="480" height="400"></canvas>
+    <a class="back" href="/">Назад</a>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const PADDLE_W = 80, PADDLE_H = 15, BALL_R = 8;
+        const BRICK_W = 60, BRICK_H = 20, BRICK_GAP = 5;
+        let paddle = {x: canvas.width/2 - PADDLE_W/2, width: PADDLE_W};
+        let ball = {x: canvas.width/2, y: canvas.height/2, dx: 3, dy: -3};
+        let bricks = [];
+        let score = 0, gameOver = false, won = false;
+
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 7; c++) {
+                bricks.push({
+                    x: c * (BRICK_W + BRICK_GAP) + 30,
+                    y: r * (BRICK_H + BRICK_GAP) + 30,
+                    visible: true
+                });
+            }
+        }
+
+        function update() {
+            if (gameOver || won) return;
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            if (ball.x <= BALL_R || ball.x >= canvas.width - BALL_R) ball.dx *= -1;
+            if (ball.y <= BALL_R) ball.dy *= -1;
+            if (ball.y >= canvas.height - BALL_R) {
+                gameOver = true;
+            }
+
+            if (ball.x > paddle.x && ball.x < paddle.x + paddle.width &&
+                ball.y + BALL_R >= canvas.height - PADDLE_H - 10) {
+                ball.dy *= -1;
+                ball.y = canvas.height - PADDLE_H - 10 - BALL_R;
+            }
+
+            bricks.forEach(b => {
+                if (b.visible &&
+                    ball.x > b.x && ball.x < b.x + BRICK_W &&
+                    ball.y > b.y && ball.y < b.y + BRICK_H) {
+                    b.visible = false;
+                    ball.dy *= -1;
+                    score += 10;
+                    scoreEl.textContent = score;
+                }
+            });
+
+            if (bricks.every(b => !b.visible)) won = true;
+            draw();
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0f0f23';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#60a5fa';
+            bricks.forEach(b => {
+                if (b.visible) ctx.fillRect(b.x, b.y, BRICK_W, BRICK_H);
+            });
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#60a5fa';
+            ctx.fillRect(paddle.x, canvas.height - PADDLE_H - 10, paddle.width, PADDLE_H);
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '30px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('Игра окончена', canvas.width/2, canvas.height/2);
+            }
+            if (won) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#4ade80';
+                ctx.font = '30px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('Победа!', canvas.width/2, canvas.height/2);
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft') paddle.x = Math.max(0, paddle.x - 20);
+            if (e.key === 'ArrowRight') paddle.x = Math.min(canvas.width - paddle.width, paddle.x + 20);
+            draw();
+        });
+
+        document.addEventListener('mousemove', e => {
+            let rect = canvas.getBoundingClientRect();
+            paddle.x = e.clientX - rect.left - paddle.width/2;
+            paddle.x = Math.max(0, Math.min(canvas.width - paddle.width, paddle.x));
+            draw();
+        });
+
+        setInterval(update, 20);
+        draw();
+    </script>
+</body>
+</html>

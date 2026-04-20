@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тетрис</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        h1 { color: #e94560; margin-bottom: 20px; }
+        canvas {
+            border: 3px solid #e94560;
+            background: #0f0f23;
+        }
+        .score { color: #fff; font-size: 1.5rem; margin: 10px 0; }
+        .back { color: #e94560; text-decoration: none; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Тетрис</h1>
+    <div class="score">Счёт: <span id="score">0</span></div>
+    <canvas id="game" width="300" height="600"></canvas>
+    <a class="back" href="/">Назад</a>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const COLS = 10, ROWS = 20, SIZE = 30;
+        const COLORS = ['#00ffff', '#ffff00', '#ff00ff', '#00ff00', '#ff0000', '#0000ff', '#ff8800'];
+        const SHAPES = [
+            [[1,1,1,1]],
+            [[1,1],[1,1]],
+            [[1,1,1],[0,1,0]],
+            [[1,1,1],[1,0,0]],
+            [[1,1,1],[0,0,1]],
+            [[1,1,0],[0,1,1]],
+            [[0,1,1],[1,1,0]]
+        ];
+        let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        let piece = null, x = 3, y = 0, colorIdx = 0;
+        let score = 0, gameOver = false, interval;
+
+        function newPiece() {
+            colorIdx = Math.floor(Math.random() * COLORS.length);
+            piece = JSON.parse(JSON.stringify(SHAPES[Math.floor(Math.random() * SHAPES.length)]));
+            x = Math.floor(COLS/2) - Math.floor(piece[0].length/2);
+            y = 0;
+            if (collide()) gameOver = true;
+        }
+
+        function collide() {
+            for (let r = 0; r < piece.length; r++) {
+                for (let c = 0; c < piece[r].length; c++) {
+                    if (piece[r][c]) {
+                        let nx = x + c, ny = y + r;
+                        if (nx < 0 || nx >= COLS || ny >= ROWS || board[ny][nx]) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function rotate() {
+            let rotated = piece[0].map((_, i) => piece.map(row => row[i]).reverse());
+            let old = piece;
+            piece = rotated;
+            if (collide()) piece = old;
+        }
+
+        function merge() {
+            for (let r = 0; r < piece.length; r++) {
+                for (let c = 0; c < piece[r].length; c++) {
+                    if (piece[r][c]) board[y + r][x + c] = colorIdx;
+                }
+            }
+            for (let r = ROWS - 1; r >= 0; r--) {
+                if (board[r].every(c => c !== 0)) {
+                    board.splice(r, 1);
+                    board.unshift(Array(COLS).fill(0));
+                    score += 100;
+                    scoreEl.textContent = score;
+                    r++;
+                }
+            }
+            newPiece();
+        }
+
+        function move(dx, dy) {
+            x += dx; y += dy;
+            if (collide()) {
+                x -= dx; y -= dy;
+                if (dy) merge();
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0f0f23';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c] !== 0) {
+                        ctx.fillStyle = COLORS[board[r][c]];
+                        ctx.fillRect(c*SIZE+1, r*SIZE+1, SIZE-2, SIZE-2);
+                    }
+                }
+            }
+            if (piece) {
+                ctx.fillStyle = COLORS[colorIdx];
+                for (let r = 0; r < piece.length; r++) {
+                    for (let c = 0; c < piece[r].length; c++) {
+                        if (piece[r][c]) ctx.fillRect((x+c)*SIZE+1, (y+r)*SIZE+1, SIZE-2, SIZE-2);
+                    }
+                }
+            }
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#e94560';
+                ctx.font = '30px Courier New';
+                ctx.textAlign = 'center';
+                ctx.fillText('Игра окончена', canvas.width/2, canvas.height/2);
+            }
+        }
+
+        function update() {
+            if (!gameOver) move(0, 1);
+            draw();
+        }
+
+        document.addEventListener('keydown', e => {
+            if (gameOver) return;
+            if (e.key === 'ArrowLeft') move(-1, 0);
+            else if (e.key === 'ArrowRight') move(1, 0);
+            else if (e.key === 'ArrowDown') move(0, 1);
+            else if (e.key === 'ArrowUp' || e.key === ' ') rotate();
+            draw();
+        });
+
+        newPiece();
+        interval = setInterval(update, 500);
+    </script>
+</body>
+</html>
