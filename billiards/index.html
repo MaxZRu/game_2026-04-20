@@ -276,6 +276,7 @@
     const MAX_BALL_SPEED = 900;
     const SHOT_MAX_SIM_MS = 20000;
     const STOPPED_FRAMES_REQUIRED = 5;
+    const AIM_PUBLISH_INTERVAL_MS = 45;
 
     let realtimeClient = null;
     let channel = null;
@@ -299,6 +300,8 @@
     let currentAim = null;
     let hoverAim = null;
     let isDraggingAim = false;
+    let remoteAim = null;
+    let lastAimPublishAt = 0;
 
     let physicsState = createInitialPhysicsState();
 
@@ -428,6 +431,30 @@
       resetBtn.disabled = !canShootNow;
       updateTableTurnHighlight();
       renderTable();
+    }
+
+    async function publishAimState(aim, active) {
+      if (!channel || !isPlayerTurnAndCanShoot()) {
+        return;
+      }
+      const now = performance.now();
+      if (active && now - lastAimPublishAt < AIM_PUBLISH_INTERVAL_MS) {
+        return;
+      }
+      lastAimPublishAt = now;
+      await channel.publish("aim_state", {
+        shooterId: clientIdInput.value.trim(),
+        active: Boolean(active),
+        aim: active && aim
+          ? {
+            dirX: Number(aim.dirX.toFixed(4)),
+            dirY: Number(aim.dirY.toFixed(4)),
+            pointerX: Number(aim.pointerX.toFixed(2)),
+            pointerY: Number(aim.pointerY.toFixed(2)),
+            pullDistance: Number(aim.pullDistance.toFixed(2))
+          }
+          : null
+      });
     }
 
     async function resetTable() {
@@ -569,6 +596,14 @@
         }
         if (currentAim) {
           drawAimGuide(currentAim, 1);
+        }
+      } else if (remoteAim && remoteAim.aim) {
+        drawAimGuide(remoteAim.aim, 0.75);
+        const cueBall = getCueBall();
+        if (cueBall) {
+          ctx.fillStyle = "#93c5fd";
+          ctx.font = "12px Arial";
+          ctx.fillText(`Целится: ${remoteAim.shooterId}`, cueBall.x + 12, cueBall.y + 20);
         }
       }
 
@@ -904,6 +939,8 @@
       cueBall.vy = dirY * force;
       clampBallSpeed(cueBall);
       currentAim = null;
+      remoteAim = null;
+      publishAimState(null, false).catch(() => {});
 
       await channel.publish("shot_start", {
         shotId,
@@ -1011,8 +1048,33 @@
 
           if (message.name === "shot_start") {
             activeShotId = message.data && message.data.shotId ? message.data.shotId : activeShotId;
+            remoteAim = null;
             logEvent(`shot_start ${message.data && message.data.shotId ? message.data.shotId : "-"}`);
             updateShootButtonState();
+            return;
+          }
+
+          if (message.name === "aim_state") {
+            const data = message.data || {};
+            if (message.clientId === clientId) {
+              return;
+            }
+            if (!data.active || !data.aim || !data.shooterId) {
+              remoteAim = null;
+              renderTable();
+              return;
+            }
+            remoteAim = {
+              shooterId: data.shooterId,
+              aim: {
+                dirX: data.aim.dirX,
+                dirY: data.aim.dirY,
+                pointerX: data.aim.pointerX,
+                pointerY: data.aim.pointerY,
+                pullDistance: data.aim.pullDistance
+              }
+            };
+            renderTable();
             return;
           }
 
@@ -1029,6 +1091,7 @@
               applySnapshot(data.finalState);
             }
             activeShotId = null;
+            remoteAim = null;
             if (data.nextShooterId) {
               roleState.currentShooterId = data.nextShooterId;
             }
@@ -1041,6 +1104,7 @@
           if (message.name === "table_reset") {
             const data = message.data || {};
             activeShotId = null;
+            remoteAim = null;
             stopSimulationLoop();
             clearReconnectTimer();
             if (data.state && Array.isArray(data.state.balls)) {
@@ -1113,6 +1177,7 @@
       currentAim = null;
       hoverAim = null;
       isDraggingAim = false;
+      remoteAim = null;
       lastAppliedSeqByShot.clear();
       physicsState = createInitialPhysicsState();
       renderTable();
@@ -1179,6 +1244,7 @@
       };
       updateAimFromPointer(currentAim, point.x, point.y);
       renderTable();
+      publishAimState(currentAim, true).catch(() => {});
     });
 
     canvas.addEventListener("mousemove", (event) => {
@@ -1195,6 +1261,7 @@
       }
       if (currentAim) {
         updateAimFromPointer(currentAim, point.x, point.y);
+        publishAimState(currentAim, true).catch(() => {});
       }
       renderTable();
     });
@@ -1206,6 +1273,7 @@
       const point = getCanvasPoint(event);
       updateAimFromPointer(currentAim, point.x, point.y);
       renderTable();
+      publishAimState(currentAim, true).catch(() => {});
     });
 
     function releaseAimAndShoot() {
@@ -1222,6 +1290,7 @@
       currentAim = null;
       hoverAim = null;
       renderTable();
+      publishAimState(null, false).catch(() => {});
       startAuthoritativeShot(aim).catch((error) => {
         setStatus(`ошибка удара: ${error.message}`, true);
       });
@@ -1237,6 +1306,7 @@
       if (!isDraggingAim) {
         currentAim = null;
         hoverAim = null;
+        publishAimState(null, false).catch(() => {});
       }
       renderTable();
     });
