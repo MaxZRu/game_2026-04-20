@@ -28,16 +28,17 @@
         }
         .games {
             display: flex;
-            gap: 30px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 20px;
             justify-content: center;
+            align-items: center;
         }
         .game-card {
-            width: 200px;
-            height: 200px;
+            width: 300px;
+            height: 64px;
             background: #0f3460;
             border: 3px solid #e94560;
-            border-radius: 15px;
+            border-radius: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -71,6 +72,15 @@
         </a>
         <a href="arkanoid/" class="game-card">
             <span>Арканоид</span>
+        </a>
+        <a href="billiards/" class="game-card">
+            <span>Бильярд</span>
+        </a>
+        <a href="chat/" class="game-card">
+            <span>Чат</span>
+        </a>
+        <a href="teststorage/" class="game-card">
+            <span>Test Storage</span>
         </a>
     </div>
 </body>

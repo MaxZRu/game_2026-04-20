@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billiards Realtime (Ably)</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    .container {
+      max-width: 1060px;
+      margin: 0 auto;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      background: #111827;
+      padding: 16px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .hint {
+      margin: 0 0 16px;
+      color: #93c5fd;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      align-items: end;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 220px;
+      flex: 1;
+    }
+
+    input,
+    button {
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0b1220;
+      color: #f8fafc;
+      font: inherit;
+      padding: 10px;
+    }
+
+    button {
+      cursor: pointer;
+      min-width: 150px;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0b1220;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      color: #bfdbfe;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #020617;
+      padding: 10px;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .meta {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #cbd5e1;
+      margin-bottom: 10px;
+    }
+
+    .meta strong {
+      color: #e2e8f0;
+    }
+
+    .players {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #bfdbfe;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 8px;
+      background: #0b1220;
+    }
+
+    .player-row {
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    canvas {
+      width: 100%;
+      max-width: 720px;
+      aspect-ratio: 2 / 1;
+      border-radius: 10px;
+      border: 3px solid #334155;
+      background: #14532d;
+      display: block;
+      margin: 0 auto;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    canvas.turn-active {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
+    }
+
+    canvas.turn-waiting {
+      border-color: #facc15;
+      box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.3);
+    }
+
+    canvas.turn-observer {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+    }
+
+    .log {
+      margin-top: 10px;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0b1220;
+      height: 160px;
+      overflow-y: auto;
+      padding: 8px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+
+    .log-item {
+      margin-bottom: 6px;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 980px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Realtime бильярд (2 игрока + наблюдатели)</h1>
+    <p class="hint">
+      Authoritative физика: считает только текущий бьющий. Остальные клиенты рендерят по snapshot.
+    </p>
+
+    <div class="row">
+      <label>
+        Ably API Key
+        <input id="apiKey" value="faH5pA.VL-gWQ:H0bVgMa03iX2WJItMxHov0L2oP_Q5SWS4k_hYjk23xY" />
+      </label>
+      <label>
+        Room ID
+        <input id="roomId" value="table-1" />
+      </label>
+      <label>
+        Client ID
+        <input id="clientId" placeholder="user-xxxxxx" />
+      </label>
+    </div>
+
+    <div class="row">
+      <button id="connectBtn" type="button">Подключиться</button>
+      <button id="disconnectBtn" type="button" disabled>Отключиться</button>
+      <button id="resetBtn" type="button" disabled>Сброс партии</button>
+      <button id="recomputeBtn" type="button" disabled>Пересчитать роли</button>
+    </div>
+
+    <div id="status" class="status">Статус: не подключено</div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Стол</h2>
+        <canvas id="tableCanvas" width="720" height="360"></canvas>
+        <div class="small">
+          Мяч №0 (белый) имеет скорость при ударе. Симуляция идет 4с, snapshot отправляются ~15 Hz.
+        </div>
+        <div id="eventLog" class="log"></div>
+      </div>
+      <div class="panel">
+        <h2>Комната</h2>
+        <div id="meta" class="meta"></div>
+        <div id="playersList" class="players">Участников пока нет</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+  <script>
+    const apiKeyInput = document.getElementById("apiKey");
+    const roomIdInput = document.getElementById("roomId");
+    const clientIdInput = document.getElementById("clientId");
+    const connectBtn = document.getElementById("connectBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const recomputeBtn = document.getElementById("recomputeBtn");
+    const statusEl = document.getElementById("status");
+    const metaEl = document.getElementById("meta");
+    const playersListEl = document.getElementById("playersList");
+    const eventLogEl = document.getElementById("eventLog");
+    const canvas = document.getElementById("tableCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const RECONNECT_TIMEOUT_MS = 10000;
+    const SNAPSHOT_HZ = 15;
+    const TABLE_W = 720;
+    const TABLE_H = 360;
+    const BALL_RADIUS = 10;
+    const FRICTION = 0.95;
+    const WALL_BOUNCE = 0.95;
+    const BALL_BOUNCE = 0.96;
+    const POCKET_RADIUS = 18;
+    const MAX_PULL_DISTANCE = 170;
+    const BASE_FORCE = 64;
+    const MAX_FORCE = 1000;
+    const MIN_MOVING_SPEED = 1.2;
+    const PHYSICS_SUBSTEPS = 4;
+    const MAX_BALL_SPEED = 900;
+    const SHOT_MAX_SIM_MS = 20000;
+    const STOPPED_FRAMES_REQUIRED = 5;
+
+    let realtimeClient = null;
+    let channel = null;
+    let currentRoomChannel = "";
+
+    let roleState = {
+      version: 0,
+      members: [],
+      player1Id: null,
+      player2Id: null,
+      observers: [],
+      currentShooterId: null
+    };
+
+    let myRole = "observer";
+    let activeShotId = null;
+    let lastAppliedSeqByShot = new Map();
+    let reconnectTimerId = null;
+    let disconnectedShooterId = null;
+    let simulationIntervalId = null;
+    let currentAim = null;
+    let hoverAim = null;
+    let isDraggingAim = false;
+
+    let physicsState = createInitialPhysicsState();
+
+    function createInitialPhysicsState() {
+      const rackColors = [
+        "#ef4444", "#f59e0b", "#22d3ee", "#a855f7", "#eab308",
+        "#3b82f6", "#10b981", "#f97316", "#ec4899", "#14b8a6",
+        "#8b5cf6", "#f43f5e", "#84cc16", "#0ea5e9", "#facc15"
+      ];
+      const objectBalls = [];
+      const rackStartX = 520;
+      const rackStartY = TABLE_H / 2;
+      const rowSpacing = BALL_RADIUS * 1.9;
+      const colSpacing = BALL_RADIUS * 1.75;
+      let nextId = 1;
+      let colorIndex = 0;
+
+      for (let row = 0; row < 5; row += 1) {
+        const ballsInRow = row + 1;
+        const x = rackStartX + row * colSpacing;
+        const rowHeight = (ballsInRow - 1) * rowSpacing;
+        for (let i = 0; i < ballsInRow; i += 1) {
+          const y = rackStartY - rowHeight / 2 + i * rowSpacing;
+          objectBalls.push({
+            id: nextId,
+            x,
+            y,
+            vx: 0,
+            vy: 0,
+            color: rackColors[colorIndex % rackColors.length]
+          });
+          nextId += 1;
+          colorIndex += 1;
+        }
+      }
+
+      return {
+        balls: [
+          { id: 0, x: 150, y: 180, vx: 0, vy: 0, color: "#f8fafc" },
+          ...objectBalls
+        ].map((ball) => ({ ...ball, active: true }))
+      };
+    }
+
+    function getPocketCenters() {
+      return [
+        { x: 0, y: 0 },
+        { x: TABLE_W / 2, y: 0 },
+        { x: TABLE_W, y: 0 },
+        { x: 0, y: TABLE_H },
+        { x: TABLE_W / 2, y: TABLE_H },
+        { x: TABLE_W, y: TABLE_H }
+      ];
+    }
+
+    function isPlayerTurnAndCanShoot() {
+      const myId = clientIdInput.value.trim();
+      return Boolean(channel)
+        && (myRole === "player1" || myRole === "player2")
+        && roleState.currentShooterId === myId
+        && !activeShotId;
+    }
+
+    function getCueBall() {
+      return physicsState.balls.find((ball) => ball.id === 0 && ball.active);
+    }
+
+    function clampBallSpeed(ball) {
+      const speed = Math.hypot(ball.vx, ball.vy);
+      if (speed <= MAX_BALL_SPEED || speed === 0) {
+        return;
+      }
+      const k = MAX_BALL_SPEED / speed;
+      ball.vx *= k;
+      ball.vy *= k;
+    }
+
+    function ensureCueBallPresent() {
+      const cueBall = physicsState.balls.find((ball) => ball.id === 0);
+      if (!cueBall) {
+        return;
+      }
+      if (!cueBall.active) {
+        cueBall.x = 150;
+        cueBall.y = 180;
+        cueBall.vx = 0;
+        cueBall.vy = 0;
+        cueBall.active = true;
+      }
+    }
+
+    function generateRandomClientId() {
+      const randomNumber = Math.floor(Math.random() * 1000000);
+      return `user-${String(randomNumber).padStart(6, "0")}`;
+    }
+
+    function logEvent(message) {
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      eventLogEl.appendChild(item);
+      eventLogEl.scrollTop = eventLogEl.scrollHeight;
+    }
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = "Статус: " + text;
+      statusEl.style.color = isError ? "#fca5a5" : "#bfdbfe";
+    }
+
+    function setConnectedUi(isConnected) {
+      connectBtn.disabled = isConnected;
+      disconnectBtn.disabled = !isConnected;
+      apiKeyInput.disabled = isConnected;
+      roomIdInput.disabled = isConnected;
+      clientIdInput.disabled = isConnected;
+      recomputeBtn.disabled = !isConnected;
+      updateShootButtonState();
+    }
+
+    function updateShootButtonState() {
+      const canShootNow = isPlayerTurnAndCanShoot();
+      if (!isPlayerTurnAndCanShoot()) {
+        currentAim = null;
+        hoverAim = null;
+        isDraggingAim = false;
+      }
+      resetBtn.disabled = !canShootNow;
+      updateTableTurnHighlight();
+      renderTable();
+    }
+
+    async function resetTable() {
+      if (!channel) {
+        return;
+      }
+      if (!isPlayerTurnAndCanShoot()) {
+        logEvent("Сброс доступен только игроку, который сейчас бьет.");
+        return;
+      }
+      stopSimulationLoop();
+      const nextState = createInitialPhysicsState();
+      physicsState = nextState;
+      renderTable();
+      await channel.publish("table_reset", {
+        byClientId: clientIdInput.value.trim(),
+        at: Date.now(),
+        state: { balls: nextState.balls }
+      });
+      logEvent("Партия сброшена в стартовую расстановку.");
+    }
+
+    function getTurnClassForClient(clientId) {
+      if (!clientId) {
+        return "turn-observer";
+      }
+      const isPlayer = clientId === roleState.player1Id || clientId === roleState.player2Id;
+      if (!isPlayer) {
+        return "turn-observer";
+      }
+      if (roleState.currentShooterId && roleState.currentShooterId === clientId) {
+        return "turn-active";
+      }
+      return "turn-waiting";
+    }
+
+    function colorByTurnClass(turnClass) {
+      if (turnClass === "turn-active") {
+        return "#22c55e";
+      }
+      if (turnClass === "turn-waiting") {
+        return "#facc15";
+      }
+      return "#ef4444";
+    }
+
+    function updateTableTurnHighlight() {
+      const myId = clientIdInput.value.trim();
+      canvas.classList.remove("turn-active", "turn-waiting", "turn-observer");
+      canvas.classList.add(getTurnClassForClient(myId));
+    }
+
+    function drawAimGuide(aim, alpha = 1) {
+      const cueBall = getCueBall();
+      if (!cueBall || !aim) {
+        return;
+      }
+      const powerRatio = Math.min(aim.pullDistance / MAX_PULL_DISTANCE, 1);
+      const aimLen = 70 + powerRatio * 60;
+      const endX = cueBall.x + aim.dirX * aimLen;
+      const endY = cueBall.y + aim.dirY * aimLen;
+
+      ctx.beginPath();
+      ctx.moveTo(cueBall.x, cueBall.y);
+      ctx.lineTo(endX, endY);
+      ctx.strokeStyle = `rgba(255,255,255,${0.85 * alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(cueBall.x, cueBall.y);
+      ctx.lineTo(aim.pointerX, aim.pointerY);
+      ctx.strokeStyle = `rgba(147,197,253,${0.85 * alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "12px Arial";
+      ctx.fillText(`Сила: ${Math.round(powerRatio * 100)}%`, cueBall.x + 12, cueBall.y - 14);
+    }
+
+    function renderMeta() {
+      const clientId = clientIdInput.value.trim();
+      metaEl.innerHTML = ""
+        + `<div><strong>Вы:</strong> ${clientId || "-"}</div>`
+        + `<div><strong>Ваша роль:</strong> ${myRole}</div>`
+        + `<div><strong>Player1:</strong> ${roleState.player1Id || "-"}</div>`
+        + `<div><strong>Player2:</strong> ${roleState.player2Id || "-"}</div>`
+        + `<div><strong>Текущий бьющий:</strong> ${roleState.currentShooterId || "-"}</div>`
+        + `<div><strong>Версия ролей:</strong> ${roleState.version}</div>`;
+    }
+
+    function renderPlayers() {
+      if (!roleState.members.length) {
+        playersListEl.textContent = "Участников пока нет";
+        return;
+      }
+      const rows = roleState.members.map((m, idx) => {
+        let seat = "observer";
+        if (m.clientId === roleState.player1Id) {
+          seat = "player1";
+        } else if (m.clientId === roleState.player2Id) {
+          seat = "player2";
+        }
+        const turnClass = getTurnClassForClient(m.clientId);
+        const color = colorByTurnClass(turnClass);
+        const state = turnClass === "turn-active"
+          ? "бьет"
+          : turnClass === "turn-waiting"
+            ? "ждет"
+            : "наблюдает";
+        return `<div class="player-row" style="color:${color}">${idx + 1}. ${m.clientId} (${seat}, ${state})</div>`;
+      });
+      playersListEl.innerHTML = rows.join("");
+    }
+
+    function renderTable() {
+      ctx.clearRect(0, 0, TABLE_W, TABLE_H);
+
+      ctx.fillStyle = "#14532d";
+      ctx.fillRect(0, 0, TABLE_W, TABLE_H);
+
+      ctx.strokeStyle = "#1f2937";
+      ctx.lineWidth = 14;
+      ctx.strokeRect(0, 0, TABLE_W, TABLE_H);
+
+      for (const pocket of getPocketCenters()) {
+        ctx.beginPath();
+        ctx.arc(pocket.x, pocket.y, POCKET_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = "#020617";
+        ctx.fill();
+      }
+
+      if (isPlayerTurnAndCanShoot()) {
+        if (hoverAim && !currentAim) {
+          drawAimGuide(hoverAim, 0.55);
+        }
+        if (currentAim) {
+          drawAimGuide(currentAim, 1);
+        }
+      }
+
+      for (const ball of physicsState.balls) {
+        if (!ball.active) {
+          continue;
+        }
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+        ctx.fillStyle = ball.color;
+        ctx.fill();
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    function recomputeRolesFromMembers(memberList) {
+      const sorted = [...memberList].sort((a, b) => a.enteredAt - b.enteredAt);
+      const player1Id = sorted[0] ? sorted[0].clientId : null;
+      const player2Id = sorted[1] ? sorted[1].clientId : null;
+      const observers = sorted.slice(2).map((m) => m.clientId);
+
+      if (roleState.currentShooterId !== player1Id && roleState.currentShooterId !== player2Id) {
+        roleState.currentShooterId = player1Id || player2Id || null;
+      }
+
+      roleState = {
+        ...roleState,
+        version: roleState.version + 1,
+        members: sorted,
+        player1Id,
+        player2Id,
+        observers
+      };
+
+      const myId = clientIdInput.value.trim();
+      if (myId === player1Id) {
+        myRole = "player1";
+      } else if (myId === player2Id) {
+        myRole = "player2";
+      } else {
+        myRole = "observer";
+      }
+    }
+
+    async function publishRoleState() {
+      if (!channel) {
+        return;
+      }
+      await channel.publish("role_state", {
+        version: roleState.version,
+        members: roleState.members,
+        player1Id: roleState.player1Id,
+        player2Id: roleState.player2Id,
+        observers: roleState.observers,
+        currentShooterId: roleState.currentShooterId
+      });
+    }
+
+    async function recalcAndBroadcastRoles() {
+      if (!channel) {
+        return;
+      }
+
+      const presenceMembers = await channel.presence.get();
+      const normalized = presenceMembers
+        .map((m) => {
+          const enteredAt = m.data && Number.isFinite(m.data.enteredAt) ? m.data.enteredAt : Date.now();
+          return { clientId: m.clientId, enteredAt };
+        })
+        .sort((a, b) => a.enteredAt - b.enteredAt);
+
+      recomputeRolesFromMembers(normalized);
+      await publishRoleState();
+      renderMeta();
+      renderPlayers();
+      updateShootButtonState();
+    }
+
+    function applyRemoteRoleState(data) {
+      if (!data || typeof data !== "object") {
+        return;
+      }
+      if (!Number.isFinite(data.version)) {
+        return;
+      }
+      if (data.version < roleState.version) {
+        return;
+      }
+
+      roleState = {
+        version: data.version,
+        members: Array.isArray(data.members) ? data.members : [],
+        player1Id: data.player1Id || null,
+        player2Id: data.player2Id || null,
+        observers: Array.isArray(data.observers) ? data.observers : [],
+        currentShooterId: data.currentShooterId || null
+      };
+
+      const myId = clientIdInput.value.trim();
+      if (myId === roleState.player1Id) {
+        myRole = "player1";
+      } else if (myId === roleState.player2Id) {
+        myRole = "player2";
+      } else {
+        myRole = "observer";
+      }
+
+      renderMeta();
+      renderPlayers();
+      updateShootButtonState();
+    }
+
+    function getNextShooterId(currentId) {
+      const shooters = [roleState.player1Id, roleState.player2Id].filter(Boolean);
+      if (!shooters.length) {
+        return null;
+      }
+      if (shooters.length === 1) {
+        return shooters[0];
+      }
+      return currentId === shooters[0] ? shooters[1] : shooters[0];
+    }
+
+    function tickPhysics(dt) {
+      const stepDt = dt / PHYSICS_SUBSTEPS;
+      const frictionPerStep = Math.pow(FRICTION, 1 / PHYSICS_SUBSTEPS);
+
+      for (let step = 0; step < PHYSICS_SUBSTEPS; step += 1) {
+        const activeBalls = physicsState.balls.filter((ball) => ball.active);
+
+        for (let i = 0; i < activeBalls.length; i += 1) {
+          for (let j = i + 1; j < activeBalls.length; j += 1) {
+            const ballA = activeBalls[i];
+            const ballB = activeBalls[j];
+            const dx = ballB.x - ballA.x;
+            const dy = ballB.y - ballA.y;
+            const minDist = BALL_RADIUS * 2;
+            const distanceSq = dx * dx + dy * dy;
+            if (distanceSq >= minDist * minDist) {
+              continue;
+            }
+
+            let distance = Math.sqrt(distanceSq);
+            let nx = 1;
+            let ny = 0;
+            if (distance > 0.0001) {
+              nx = dx / distance;
+              ny = dy / distance;
+            } else {
+              distance = minDist;
+            }
+
+            const overlap = minDist - distance;
+            ballA.x -= nx * (overlap / 2);
+            ballA.y -= ny * (overlap / 2);
+            ballB.x += nx * (overlap / 2);
+            ballB.y += ny * (overlap / 2);
+
+            const rvx = ballB.vx - ballA.vx;
+            const rvy = ballB.vy - ballA.vy;
+            const velAlongNormal = rvx * nx + rvy * ny;
+            if (velAlongNormal >= 0) {
+              continue;
+            }
+
+            const impulse = (-(1 + BALL_BOUNCE) * velAlongNormal) / 2;
+            ballA.vx -= impulse * nx;
+            ballA.vy -= impulse * ny;
+            ballB.vx += impulse * nx;
+            ballB.vy += impulse * ny;
+            clampBallSpeed(ballA);
+            clampBallSpeed(ballB);
+          }
+        }
+
+        for (const ball of physicsState.balls) {
+          if (!ball.active) {
+            continue;
+          }
+          ball.x += ball.vx * stepDt;
+          ball.y += ball.vy * stepDt;
+          ball.vx *= frictionPerStep;
+          ball.vy *= frictionPerStep;
+          clampBallSpeed(ball);
+
+          if (Math.abs(ball.vx) < MIN_MOVING_SPEED) {
+            ball.vx = 0;
+          }
+          if (Math.abs(ball.vy) < MIN_MOVING_SPEED) {
+            ball.vy = 0;
+          }
+
+          for (const pocket of getPocketCenters()) {
+            const px = ball.x - pocket.x;
+            const py = ball.y - pocket.y;
+            if (px * px + py * py <= POCKET_RADIUS * POCKET_RADIUS) {
+              if (ball.id === 0) {
+                ball.active = false;
+              } else {
+                ball.active = false;
+              }
+              ball.vx = 0;
+              ball.vy = 0;
+              logEvent(`Шар №${ball.id} в лунке`);
+              break;
+            }
+          }
+          if (!ball.active) {
+            continue;
+          }
+
+          if (ball.x < BALL_RADIUS) {
+            ball.x = BALL_RADIUS;
+            ball.vx = Math.abs(ball.vx) * WALL_BOUNCE;
+          }
+          if (ball.x > TABLE_W - BALL_RADIUS) {
+            ball.x = TABLE_W - BALL_RADIUS;
+            ball.vx = -Math.abs(ball.vx) * WALL_BOUNCE;
+          }
+          if (ball.y < BALL_RADIUS) {
+            ball.y = BALL_RADIUS;
+            ball.vy = Math.abs(ball.vy) * WALL_BOUNCE;
+          }
+          if (ball.y > TABLE_H - BALL_RADIUS) {
+            ball.y = TABLE_H - BALL_RADIUS;
+            ball.vy = -Math.abs(ball.vy) * WALL_BOUNCE;
+          }
+        }
+      }
+    }
+
+    function makeSnapshotPayload(shotId, seq, simTimeMs) {
+      return {
+        shotId,
+        seq,
+        simTimeMs,
+        balls: physicsState.balls.map((ball) => ({
+          id: ball.id,
+          x: Number(ball.x.toFixed(2)),
+          y: Number(ball.y.toFixed(2)),
+          vx: Number(ball.vx.toFixed(3)),
+          vy: Number(ball.vy.toFixed(3)),
+          active: ball.active !== false
+        }))
+      };
+    }
+
+    function applySnapshot(snapshot) {
+      if (!snapshot || !Array.isArray(snapshot.balls)) {
+        return;
+      }
+      const byId = new Map(snapshot.balls.map((b) => [b.id, b]));
+      physicsState.balls = physicsState.balls.map((ball) => {
+        const incoming = byId.get(ball.id);
+        if (!incoming) {
+          return ball;
+        }
+        return {
+          ...ball,
+          x: incoming.x,
+          y: incoming.y,
+          vx: incoming.vx,
+          vy: incoming.vy,
+          active: incoming.active !== false
+        };
+      });
+      renderTable();
+    }
+
+    function clearReconnectTimer() {
+      if (reconnectTimerId) {
+        clearTimeout(reconnectTimerId);
+        reconnectTimerId = null;
+      }
+      disconnectedShooterId = null;
+    }
+
+    function startReconnectTimer(shooterId) {
+      clearReconnectTimer();
+      disconnectedShooterId = shooterId;
+      logEvent(`Бьющий ${shooterId} отключился, ждем reconnect ${RECONNECT_TIMEOUT_MS / 1000}с`);
+      reconnectTimerId = setTimeout(async () => {
+        reconnectTimerId = null;
+        if (!channel || disconnectedShooterId !== shooterId) {
+          return;
+        }
+        logEvent(`Таймаут reconnect для ${shooterId}. Аварийное завершение удара.`);
+        activeShotId = null;
+        roleState.currentShooterId = getNextShooterId(shooterId);
+        await recalcAndBroadcastRoles();
+        renderMeta();
+        updateShootButtonState();
+      }, RECONNECT_TIMEOUT_MS);
+    }
+
+    function stopSimulationLoop() {
+      if (simulationIntervalId) {
+        clearInterval(simulationIntervalId);
+        simulationIntervalId = null;
+      }
+      activeShotId = null;
+      updateShootButtonState();
+    }
+
+    async function startAuthoritativeShot(aimInput = null) {
+      if (!channel) {
+        return;
+      }
+      const myId = clientIdInput.value.trim();
+      if (roleState.currentShooterId !== myId) {
+        logEvent("Удар отклонен: сейчас ходит другой игрок.");
+        return;
+      }
+
+      const shotId = `${myId}-${Date.now()}`;
+      activeShotId = shotId;
+      const cueBall = getCueBall();
+
+      if (!cueBall) {
+        activeShotId = null;
+        logEvent("Белый шар отсутствует на столе.");
+        return;
+      }
+
+      const input = aimInput || { dirX: 1, dirY: 0, force: BASE_FORCE + 4 };
+      const rawDirLen = Math.hypot(input.dirX || 0, input.dirY || 0) || 1;
+      const dirX = (input.dirX || 0) / rawDirLen;
+      const dirY = (input.dirY || 0) / rawDirLen;
+      const force = Math.max(BASE_FORCE, Math.min(MAX_FORCE, Number(input.force) || BASE_FORCE + 4));
+      cueBall.vx = dirX * force;
+      cueBall.vy = dirY * force;
+      clampBallSpeed(cueBall);
+      currentAim = null;
+
+      await channel.publish("shot_start", {
+        shotId,
+        shooterId: myId,
+        startedAt: Date.now(),
+        direction: { x: Number(dirX.toFixed(3)), y: Number(dirY.toFixed(3)) },
+        force: Number(force.toFixed(3))
+      });
+      logEvent(`shot_start ${shotId}`);
+
+      let seq = 0;
+      let stoppedFrames = 0;
+      const startedAt = performance.now();
+      const snapshotIntervalMs = Math.round(1000 / SNAPSHOT_HZ);
+      simulationIntervalId = setInterval(async () => {
+        if (!channel || activeShotId !== shotId) {
+          stopSimulationLoop();
+          return;
+        }
+
+        tickPhysics(1 / SNAPSHOT_HZ);
+        renderTable();
+        seq += 1;
+        const simTimeMs = Math.round(performance.now() - startedAt);
+        const payload = makeSnapshotPayload(shotId, seq, simTimeMs);
+
+        try {
+          await channel.publish("state_snapshot", payload);
+        } catch (error) {
+          setStatus(`ошибка snapshot: ${error.message}`, true);
+        }
+
+        const movingBalls = physicsState.balls.filter((ball) => ball.active);
+        const allStoppedNow = movingBalls.length === 0
+          || movingBalls.every((b) => Math.abs(b.vx) < MIN_MOVING_SPEED && Math.abs(b.vy) < MIN_MOVING_SPEED);
+        if (allStoppedNow) {
+          stoppedFrames += 1;
+        } else {
+          stoppedFrames = 0;
+        }
+        const almostStopped = stoppedFrames >= STOPPED_FRAMES_REQUIRED;
+        const tooLong = simTimeMs >= SHOT_MAX_SIM_MS;
+        if (almostStopped || tooLong) {
+          stopSimulationLoop();
+          ensureCueBallPresent();
+          const nextShooterId = getNextShooterId(myId);
+          roleState.currentShooterId = nextShooterId;
+
+          await channel.publish("shot_end", {
+            shotId,
+            endedAt: Date.now(),
+            reason: almostStopped ? "stopped" : "timeout",
+            nextShooterId,
+            finalState: makeSnapshotPayload(shotId, seq + 1, simTimeMs + snapshotIntervalMs)
+          });
+          logEvent(`shot_end ${shotId}, next=${nextShooterId || "-"}`);
+          await publishRoleState();
+          renderMeta();
+          updateShootButtonState();
+        }
+      }, snapshotIntervalMs);
+    }
+
+    function onIncomingSnapshot(data) {
+      if (!data || typeof data !== "object" || !data.shotId || !Number.isFinite(data.seq)) {
+        return;
+      }
+      const key = data.shotId;
+      const lastSeq = lastAppliedSeqByShot.get(key) || 0;
+      if (data.seq <= lastSeq) {
+        return;
+      }
+      lastAppliedSeqByShot.set(key, data.seq);
+      applySnapshot(data);
+    }
+
+    async function connect() {
+      const key = apiKeyInput.value.trim();
+      const roomId = roomIdInput.value.trim();
+      const clientId = clientIdInput.value.trim();
+
+      if (!key || !roomId || !clientId) {
+        setStatus("заполните API key, roomId и clientId", true);
+        return;
+      }
+
+      try {
+        setStatus("подключение...", false);
+        realtimeClient = new Ably.Realtime({ key, clientId, recover: true });
+
+        realtimeClient.connection.on((stateChange) => {
+          setStatus(stateChange.current, stateChange.current === "failed");
+        });
+
+        await realtimeClient.connection.once("connected");
+
+        currentRoomChannel = `billiards:room:${roomId}`;
+        channel = realtimeClient.channels.get(`[?rewind=50]${currentRoomChannel}`);
+
+        await channel.subscribe((message) => {
+          if (message.name === "role_state") {
+            applyRemoteRoleState(message.data);
+            return;
+          }
+
+          if (message.name === "shot_start") {
+            activeShotId = message.data && message.data.shotId ? message.data.shotId : activeShotId;
+            logEvent(`shot_start ${message.data && message.data.shotId ? message.data.shotId : "-"}`);
+            updateShootButtonState();
+            return;
+          }
+
+          if (message.name === "state_snapshot") {
+            if (message.clientId !== clientId) {
+              onIncomingSnapshot(message.data);
+            }
+            return;
+          }
+
+          if (message.name === "shot_end") {
+            const data = message.data || {};
+            if (data.finalState) {
+              applySnapshot(data.finalState);
+            }
+            activeShotId = null;
+            if (data.nextShooterId) {
+              roleState.currentShooterId = data.nextShooterId;
+            }
+            logEvent(`shot_end ${data.shotId || "-"}, next=${data.nextShooterId || "-"}`);
+            renderMeta();
+            updateShootButtonState();
+            return;
+          }
+
+          if (message.name === "table_reset") {
+            const data = message.data || {};
+            activeShotId = null;
+            stopSimulationLoop();
+            clearReconnectTimer();
+            if (data.state && Array.isArray(data.state.balls)) {
+              applySnapshot(data.state);
+            } else {
+              physicsState = createInitialPhysicsState();
+              renderTable();
+            }
+            logEvent(`Сброс стола от ${data.byClientId || "unknown"}`);
+            updateShootButtonState();
+          }
+        });
+
+        await channel.presence.subscribe(async (member) => {
+          const changedId = member.clientId;
+          const isEnter = member.action === "enter" || member.action === "present";
+          const isLeave = member.action === "leave" || member.action === "absent";
+
+          if (isLeave && changedId === disconnectedShooterId) {
+            startReconnectTimer(changedId);
+          }
+
+          if (isEnter && changedId === disconnectedShooterId) {
+            clearReconnectTimer();
+          }
+
+          await recalcAndBroadcastRoles();
+        });
+
+        await channel.presence.enter({ enteredAt: Date.now(), roomId });
+        await recalcAndBroadcastRoles();
+        setConnectedUi(true);
+        renderTable();
+        logEvent(`Подключено к ${currentRoomChannel}`);
+      } catch (error) {
+        setStatus(`ошибка подключения: ${error.message}`, true);
+        logEvent("Не удалось подключиться.");
+      }
+    }
+
+    async function disconnect() {
+      stopSimulationLoop();
+      clearReconnectTimer();
+
+      try {
+        if (channel) {
+          await channel.presence.leave();
+        }
+      } catch {
+        // ignore
+      }
+
+      if (realtimeClient) {
+        realtimeClient.close();
+      }
+
+      realtimeClient = null;
+      channel = null;
+      currentRoomChannel = "";
+      activeShotId = null;
+      roleState = {
+        version: 0,
+        members: [],
+        player1Id: null,
+        player2Id: null,
+        observers: [],
+        currentShooterId: null
+      };
+      myRole = "observer";
+      currentAim = null;
+      hoverAim = null;
+      isDraggingAim = false;
+      lastAppliedSeqByShot.clear();
+      physicsState = createInitialPhysicsState();
+      renderTable();
+      renderMeta();
+      renderPlayers();
+      setConnectedUi(false);
+      setStatus("не подключено");
+      logEvent("Отключено.");
+    }
+
+    connectBtn.addEventListener("click", connect);
+    disconnectBtn.addEventListener("click", disconnect);
+    resetBtn.addEventListener("click", () => {
+      resetTable().catch((error) => {
+        setStatus(`ошибка сброса: ${error.message}`, true);
+      });
+    });
+    recomputeBtn.addEventListener("click", () => {
+      recalcAndBroadcastRoles().catch((error) => {
+        setStatus(`ошибка пересчета ролей: ${error.message}`, true);
+      });
+    });
+
+    clientIdInput.value = generateRandomClientId();
+
+    function getCanvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = TABLE_W / rect.width;
+      const scaleY = TABLE_H / rect.height;
+      return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+      };
+    }
+
+    function updateAimFromPointer(targetAim, pointerX, pointerY) {
+      const cueBall = getCueBall();
+      if (!cueBall || !targetAim) {
+        return;
+      }
+      const dx = pointerX - cueBall.x;
+      const dy = pointerY - cueBall.y;
+      const pullDistance = Math.min(Math.hypot(dx, dy), MAX_PULL_DISTANCE);
+      const len = Math.hypot(dx, dy) || 1;
+      targetAim.pointerX = pointerX;
+      targetAim.pointerY = pointerY;
+      targetAim.pullDistance = pullDistance;
+      targetAim.dirX = dx / len;
+      targetAim.dirY = dy / len;
+    }
+
+    canvas.addEventListener("mousedown", (event) => {
+      if (!isPlayerTurnAndCanShoot()) {
+        return;
+      }
+      const point = getCanvasPoint(event);
+      isDraggingAim = true;
+      currentAim = {
+        pointerX: point.x,
+        pointerY: point.y,
+        pullDistance: 0,
+        dirX: 1,
+        dirY: 0
+      };
+      updateAimFromPointer(currentAim, point.x, point.y);
+      renderTable();
+    });
+
+    canvas.addEventListener("mousemove", (event) => {
+      const point = getCanvasPoint(event);
+      if (!isDraggingAim && !currentAim && isPlayerTurnAndCanShoot()) {
+        hoverAim = hoverAim || {
+          pointerX: point.x,
+          pointerY: point.y,
+          pullDistance: 0,
+          dirX: 1,
+          dirY: 0
+        };
+        updateAimFromPointer(hoverAim, point.x, point.y);
+      }
+      if (currentAim) {
+        updateAimFromPointer(currentAim, point.x, point.y);
+      }
+      renderTable();
+    });
+
+    window.addEventListener("mousemove", (event) => {
+      if (!isDraggingAim || !currentAim) {
+        return;
+      }
+      const point = getCanvasPoint(event);
+      updateAimFromPointer(currentAim, point.x, point.y);
+      renderTable();
+    });
+
+    function releaseAimAndShoot() {
+      if (!isDraggingAim || !currentAim || !isPlayerTurnAndCanShoot()) {
+        isDraggingAim = false;
+        currentAim = null;
+        renderTable();
+        return;
+      }
+      const powerRatio = Math.min(currentAim.pullDistance / MAX_PULL_DISTANCE, 1);
+      const force = BASE_FORCE + powerRatio * (MAX_FORCE - BASE_FORCE);
+      const aim = { dirX: currentAim.dirX, dirY: currentAim.dirY, force };
+      isDraggingAim = false;
+      currentAim = null;
+      hoverAim = null;
+      renderTable();
+      startAuthoritativeShot(aim).catch((error) => {
+        setStatus(`ошибка удара: ${error.message}`, true);
+      });
+    }
+
+    canvas.addEventListener("mouseup", releaseAimAndShoot);
+    window.addEventListener("mouseup", releaseAimAndShoot);
+
+    canvas.addEventListener("mouseleave", () => {
+      if (!isDraggingAim && !currentAim && !hoverAim) {
+        return;
+      }
+      if (!isDraggingAim) {
+        currentAim = null;
+        hoverAim = null;
+      }
+      renderTable();
+    });
+
+    renderMeta();
+    renderPlayers();
+    updateTableTurnHighlight();
+    renderTable();
+  </script>
+</body>
+</html>
