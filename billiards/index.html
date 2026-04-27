@@ -40,6 +40,22 @@
       color: #93c5fd;
     }
 
+    .links {
+      margin: -8px 0 14px;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    .links a {
+      color: #93c5fd;
+      text-decoration: none;
+      margin-right: 12px;
+    }
+
+    .links a:hover {
+      text-decoration: underline;
+    }
+
     .row {
       display: flex;
       gap: 12px;
@@ -201,6 +217,10 @@
     <p class="hint">
       Authoritative физика: считает только текущий бьющий. Остальные клиенты рендерят по snapshot.
     </p>
+    <div class="links">
+      <a href="https://ably.com/" target="_blank" rel="noopener noreferrer">Сайт Ably</a>
+      <a href="https://ably.com/docs" target="_blank" rel="noopener noreferrer">Документация Ably</a>
+    </div>
 
     <div class="row">
       <label>
@@ -424,6 +444,7 @@
     function updateShootButtonState() {
       const canShootNow = isPlayerTurnAndCanShoot();
       if (!isPlayerTurnAndCanShoot()) {
+        publishAimState(null, false).catch(() => {});
         currentAim = null;
         hoverAim = null;
         isDraggingAim = false;
@@ -1258,6 +1279,7 @@
           dirY: 0
         };
         updateAimFromPointer(hoverAim, point.x, point.y);
+        publishAimState(hoverAim, true).catch(() => {});
       }
       if (currentAim) {
         updateAimFromPointer(currentAim, point.x, point.y);
